@@ -1,84 +1,57 @@
-// Core data interfaces
+// --- Core Data Interfaces ---
 export interface Vulnerability {
-  _id: string;
-  cveId: string;
-  title: string;
-  description: string;
+  id: string;
+  cve_id: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
-  cvssScore: number;
-  affectedAssets: string[];
-  status: 'Open' | 'In Progress' | 'Resolved' | 'False Positive';
-  discoveredDate: string;
-  lastModified: string;
-  remediation: string;
-  references: string[];
+  description: string;
+  discovered_at: string;
 }
 
+// types.ts
+
 export interface Asset {
-  _id: string;
+  id: string;
   name: string;
-  ipAddress: string;
+  ip_address: string;
   location: string;
-  assetType: string;
-  riskScore: number;
-  criticalVulns: number;
-  highVulns: number;
-  mediumVulns: number;
-  lowVulns: number;
-  lastSeen: string;
+  asset_type: string;
+  risk_score: number;
+  critical_vulns: number;
+  high_vulns: number;
+  medium_vulns: number;
+  low_vulns: number;
+  last_seen: string;
   status: 'Active' | 'Inactive' | 'Maintenance';
-  tags: string[];
-  integrations: string[];
+  tags?: string[];
+  integrations?: string[];
+}
+
+// Dashboard summary (as API returns it)
+// src/types.ts
+export interface DashboardSummary {
+  totalAssets: number;
+  total_threats: number;   
+  risk_score: number;      
+  vulnerabilities: {
+    critical_vulns: number;
+    high_vulns: number;
+    medium_vulns: number;
+    low_vulns: number;
+  };
 }
 
 export interface ThreatIntelligence {
-  _id: string;
+  id: string;
   title: string;
-  description: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
   source: string;
   date: string;
-  affectedAssets: string[];
-  ioc: string[];
-  mitigation: string;
 }
-
-export interface DashboardSummary {
-  riskScore: number;
-  riskStatus: string;
-  vulnerabilities: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-  };
-  totalAssets: number;
-  totalThreats: number;
-}
-
-export interface Integration {
-  _id: string;
-  name: string;
-  type: 'EDR' | 'EDP' | 'LDAP' | 'Custom';
-  status: 'Connected' | 'Disconnected' | 'Error';
-  lastSync: string;
-  config: Record<string, any>;
-}
-
-export interface Report {
-  _id: string;
-  title: string;
-  type: 'Vulnerability' | 'Asset' | 'Threat' | 'Compliance';
-  generatedDate: string;
-  status: 'Draft' | 'Generated' | 'Delivered';
-  data: Record<string, any>;
-}
-
-// API response interfaces
+// --- API Response Interfaces ---
 export interface ApiResponse<T> {
-  data?: T;
-  error?: string;
+  data: T;
   message?: string;
+  success?: boolean;
 }
 
 export interface PaginatedResponse<T> {
@@ -89,70 +62,8 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-// Component props interfaces
-export interface SidebarProps {
-  isOpen: boolean;
-  onToggle: () => void;
-}
-
-export interface DashboardCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
-  change?: string;
-  changeType?: 'positive' | 'negative' | 'neutral';
-  trend?: 'up' | 'down' | 'stable';
-  description?: string;
-  className?: string;
-}
-
-export interface DataTableProps<T> {
-  data: T[];
-  columns: TableColumn<T>[];
-  onRowClick?: (item: T) => void;
-  searchable?: boolean;
-  pagination?: boolean;
-}
-
-export interface TableColumn<T> {
-  key: keyof T | string;
-  header: string;
-  render?: (value: any, item: T) => React.ReactNode;
-  sortable?: boolean;
-  width?: string;
-}
-
-// Form interfaces
-export interface FormField {
-  name: string;
-  label: string;
-  type: 'text' | 'email' | 'password' | 'select' | 'textarea' | 'number' | 'date';
-  required?: boolean;
-  options?: { value: string; label: string }[];
-  placeholder?: string;
-  validation?: {
-    min?: number;
-    max?: number;
-    pattern?: string;
-    message?: string;
-  };
-}
-
-export interface FormData {
-  [key: string]: any;
-}
-
-// Navigation interfaces
-export interface MenuItem {
-  id: string;
-  label: string;
-  path: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children?: MenuItem[];
-}
-
-export interface BreadcrumbItem {
-  label: string;
-  path?: string;
-  active?: boolean;
-}
+// --- Dashboard API Responses ---
+export type DashboardSummaryResponse = ApiResponse<DashboardSummary>;
+export type RiskiestAssetsResponse = ApiResponse<Asset[]>;
+export type RecentVulnerabilitiesResponse = ApiResponse<Vulnerability[]>;
+export type ThreatIntelligenceResponse = ApiResponse<ThreatIntelligence[]>;
