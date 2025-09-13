@@ -1,8 +1,8 @@
 // src/pages/Assets/Assets.tsx
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useAssets } from "../../hooks/useApiCache";
+import { useAllAssets } from "../../hooks/useApiCache";
 import { Asset } from "../../types";
 import {
   Server,
@@ -20,77 +20,39 @@ import {
   Shield,
   CheckCircle,
   Clock,
+  Settings,
 } from "lucide-react";
 
 const Assets: React.FC = () => {
-  const { data: assets, isLoading } = useAssets(); // ✅ typed already in hook
+  const { data: allAssets, isLoading } = useAllAssets(); // ✅ fetch all assets
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedEnvironment, setSelectedEnvironment] = useState<string>("all");
+  const [selectedCriticality, setSelectedCriticality] = useState<string>("all");
 
-  // Mock data fallback
-  const mockAssets: Asset[] = [
-    {
-      id: "1",
-      name: "Web Server - Production",
-      ip_address: "192.168.1.100",
-      location: "Data Center A - Rack 12",
-      asset_type: "Server",
-      risk_score: 85,
-      critical_vulns: 3,
-      high_vulns: 7,
-      medium_vulns: 12,
-      low_vulns: 5,
-      last_seen: "2024-01-15T10:30:00Z",
-      status: "Active",
-      tags: ["Production", "Web Server", "Critical", "Internet Facing"],
-      integrations: ["CrowdStrike EDR", "Tenable Scanner", "Active Directory"],
-    },
-    {
-      id: "2",
-      name: "Database Server - Finance",
-      ip_address: "192.168.1.101",
-      location: "Data Center B - Rack 15",
-      asset_type: "Database",
-      risk_score: 72,
-      critical_vulns: 1,
-      high_vulns: 5,
-      medium_vulns: 8,
-      low_vulns: 3,
-      last_seen: "2024-01-15T09:45:00Z",
-      status: "Active",
-      tags: ["Production", "Database", "Finance", "Critical"],
-      integrations: ["CrowdStrike EDR", "Tenable Scanner"],
-    },
-    {
-      id: "3",
-      name: "Workstation - Marketing",
-      ip_address: "192.168.2.50",
-      location: "Office Floor 3 - Desk 12",
-      asset_type: "Workstation",
-      risk_score: 45,
-      critical_vulns: 0,
-      high_vulns: 2,
-      medium_vulns: 6,
-      low_vulns: 4,
-      last_seen: "2024-01-15T08:30:00Z",
-      status: "Active",
-      tags: ["Office", "Workstation", "Marketing"],
-      integrations: ["CrowdStrike EDR"],
-    },
-  ];
 
-  // ✅ Explicit typing
-  const currentAssets: Asset[] =
-    assets && assets.length > 0 ? assets : mockAssets;
+  // ✅ Use real data from API
+  const currentAssets: Asset[] = allAssets || [];
+  
+  // Debug logging
+  console.log("🔍 Assets component debug:");
+  console.log("  - isLoading:", isLoading);
+  console.log("  - allAssets length:", allAssets?.length);
+  console.log("  - currentAssets length:", currentAssets.length);
+  console.log("  - first asset:", currentAssets[0]);
 
   const filteredAssets: Asset[] = currentAssets.filter((asset: Asset) => {
     const matchesSearch =
-      asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.ip_address.includes(searchTerm) ||
-      asset.location.toLowerCase().includes(searchTerm.toLowerCase());
+      asset.asset_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset.ip_address?.includes(searchTerm) ||
+      asset.fqdn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset.external_id?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType =
       selectedType === "all" || asset.asset_type === selectedType;
-    return matchesSearch && matchesType;
+    const matchesEnvironment = selectedEnvironment === "all" || asset.environment === selectedEnvironment;
+    const matchesCriticality = selectedCriticality === "all" || asset.criticality === selectedCriticality;
+    
+    return matchesSearch && matchesType && matchesEnvironment && matchesCriticality;
   });
 
   const getAssetTypeIcon = (type: string) => {
@@ -123,34 +85,44 @@ const Assets: React.FC = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Active":
+  const getStatusIcon = (environment: string) => {
+    switch (environment) {
+      case "Production":
         return CheckCircle;
-      case "Inactive":
-        return Clock;
-      case "Maintenance":
+      case "Development":
+        return Settings;
+      case "Testing":
         return Clock;
       default:
         return Clock;
     }
   };
 
-  const getRiskColor = (score: number) => {
-    if (score >= 80) return "text-red-600";
-    if (score >= 60) return "text-orange-600";
-    if (score >= 40) return "text-yellow-600";
-    return "text-green-600";
+  const getRiskColor = (criticality: string) => {
+    switch (criticality) {
+      case 'Critical': return 'text-red-600';
+      case 'High': return 'text-orange-600';
+      case 'Medium': return 'text-yellow-600';
+      case 'Low': return 'text-green-600';
+      default: return 'text-gray-600';
+    }
   };
 
-  const assetTypes = [
-    "all",
-    "Server",
-    "Workstation",
-    "Database",
-    "Network Device",
-    "Web Application",
-  ];
+  // Extract unique values from database for dynamic filtering
+  const assetTypes = useMemo(() => {
+    const types = ["all", ...Array.from(new Set(currentAssets.map(asset => asset.asset_type).filter(Boolean)))];
+    return types;
+  }, [currentAssets]);
+
+  const environments = useMemo(() => {
+    const envs = ["all", ...Array.from(new Set(currentAssets.map(asset => asset.environment).filter(Boolean)))];
+    return envs;
+  }, [currentAssets]);
+
+  const criticalities = useMemo(() => {
+    const crits = ["all", ...Array.from(new Set(currentAssets.map(asset => asset.criticality).filter(Boolean)))];
+    return crits;
+  }, [currentAssets]);
 
   if (isLoading) {
     return (
@@ -194,14 +166,14 @@ const Assets: React.FC = () => {
         <div className="bg-white rounded-xl p-6 border">
           <CheckCircle className="w-8 h-8 text-green-600" />
           <p className="text-2xl font-bold">
-            {currentAssets.filter((a: Asset) => a.status === "Active").length}
+            {currentAssets.filter((a: Asset) => a.environment === "Prod").length}
           </p>
-          <p>Active Assets</p>
+          <p>Production Assets</p>
         </div>
         <div className="bg-white rounded-xl p-6 border">
           <AlertTriangle className="w-8 h-8 text-red-600" />
           <p className="text-2xl font-bold">
-            {currentAssets.filter((a: Asset) => a.risk_score >= 70).length}
+            {currentAssets.filter((a: Asset) => a.criticality === 'Tier 1' || a.criticality === 'Tier 2').length}
           </p>
           <p>High Risk Assets</p>
         </div>
@@ -210,43 +182,89 @@ const Assets: React.FC = () => {
           <p className="text-2xl font-bold">
             {
               currentAssets.filter(
-                (a: Asset) => (a.integrations?.length ?? 0) < 2
+                (a: Asset) => (a.total_vulns ?? 0) > 10
               ).length
             }
           </p>
-          <p>Unprotected Assets</p>
+          <p>High Vulnerability Assets</p>
         </div>
       </div>
 
       {/* Search + Filter */}
-      <div className="bg-white p-4 rounded-xl border flex items-center space-x-4 mb-6">
-        <Search className="w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search assets..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 border-none focus:ring-0"
-        />
-        <Filter className="w-5 h-5 text-gray-400" />
-        <select
-          value={selectedType}
-          onChange={(e) => setSelectedType(e.target.value)}
-          className="border rounded-lg p-2"
-        >
-          {assetTypes.map((type) => (
-            <option key={type} value={type}>
-              {type === "all" ? "All Types" : type}
-            </option>
-          ))}
-        </select>
+      <div className="bg-white p-4 rounded-xl border mb-6">
+        <div className="flex items-center space-x-4 mb-4">
+          <Search className="w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search assets..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 border-none focus:ring-0"
+          />
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <Filter className="w-5 h-5 text-gray-400" />
+          
+          {/* Asset Type Filter */}
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            className="border rounded-lg px-3 py-2 pr-8 min-w-[140px] bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {assetTypes.map((type) => (
+              <option key={type} value={type}>
+                {type === "all" ? "All Types" : type}
+              </option>
+            ))}
+          </select>
+
+          {/* Environment Filter */}
+          <select
+            value={selectedEnvironment}
+            onChange={(e) => setSelectedEnvironment(e.target.value)}
+            className="border rounded-lg px-3 py-2 pr-8 min-w-[160px] bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {environments.map((env) => (
+              <option key={env} value={env}>
+                {env === "all" ? "All Environments" : env}
+              </option>
+            ))}
+          </select>
+
+          {/* Criticality Filter */}
+          <select
+            value={selectedCriticality}
+            onChange={(e) => setSelectedCriticality(e.target.value)}
+            className="border rounded-lg px-3 py-2 pr-8 min-w-[160px] bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {criticalities.map((crit) => (
+              <option key={crit} value={crit}>
+                {crit === "all" ? "All Criticalities" : crit}
+              </option>
+            ))}
+          </select>
+
+          {/* Clear Filters Button */}
+          <button
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedType("all");
+              setSelectedEnvironment("all");
+              setSelectedCriticality("all");
+            }}
+            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Clear Filters
+          </button>
+        </div>
       </div>
 
       {/* Assets Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAssets.map((asset: Asset) => {
-          const Icon = getAssetTypeIcon(asset.asset_type);
-          const StatusIcon = getStatusIcon(asset.status);
+          const Icon = getAssetTypeIcon(asset.asset_type || 'Server');
+          const StatusIcon = getStatusIcon(asset.environment || 'Unknown');
 
           return (
             <div
@@ -257,17 +275,17 @@ const Assets: React.FC = () => {
                 <Icon className="w-6 h-6 text-primary-600" />
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                    asset.status
+                    asset.environment || 'Unknown'
                   )}`}
                 >
-                  <StatusIcon className="w-3 h-3 inline mr-1" /> {asset.status}
+                  <StatusIcon className="w-3 h-3 inline mr-1" /> {asset.environment || 'Unknown'}
                 </span>
               </div>
-              <h2 className="font-semibold text-lg">{asset.name}</h2>
+              <h2 className="font-semibold text-lg">{asset.asset_name}</h2>
               <p className="text-sm text-gray-600">{asset.ip_address}</p>
               <p className="text-sm text-gray-600">{asset.asset_type}</p>
-              <p className={`text-sm mt-2 ${getRiskColor(asset.risk_score)}`}>
-                Risk: {asset.risk_score}
+              <p className={`text-sm mt-2 ${getRiskColor(asset.criticality || 'Unknown')}`}>
+                Risk: {asset.criticality || 'Unknown'}
               </p>
               <div className="mt-4 flex space-x-2">
                 <Link

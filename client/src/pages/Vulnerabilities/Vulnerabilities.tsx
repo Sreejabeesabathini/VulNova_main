@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   AlertTriangle, 
@@ -18,89 +18,25 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
-
-interface Vulnerability {
-  _id: string;
-  title: string;
-  cve: string;
-  severity: 'Critical' | 'High' | 'Medium' | 'Low';
-  status: 'Open' | 'In Progress' | 'Resolved' | 'False Positive';
-  affectedAssets: number;
-  cvssScore: number;
-  publishedDate: string;
-  lastSeen: string;
-  description: string;
-  remediation: string;
-}
+import { useVulnerabilities, useVulnerabilitiesSummary } from '../../hooks/useApiCache';
+import { Vulnerability } from '../../types';
 
 const Vulnerabilities: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
-  // Mock data for demonstration
-  const mockVulnerabilities: Vulnerability[] = [
-    {
-      _id: '1',
-      title: 'Apache Log4j Remote Code Execution',
-      cve: 'CVE-2021-44228',
-      severity: 'Critical',
-      status: 'Open',
-      affectedAssets: 15,
-      cvssScore: 10.0,
-      publishedDate: '2021-12-09',
-      lastSeen: '2024-01-15T10:30:00Z',
-      description: 'Apache Log4j2 versions 2.0-beta9 through 2.14.1 are vulnerable to remote code execution.',
-      remediation: 'Upgrade to Log4j2 version 2.15.0 or later.'
-    },
-    {
-      _id: '2',
-      title: 'Microsoft Exchange Server SSRF',
-      cve: 'CVE-2021-26855',
-      severity: 'High',
-      status: 'In Progress',
-      affectedAssets: 8,
-      cvssScore: 8.8,
-      publishedDate: '2021-03-02',
-      lastSeen: '2024-01-14T15:45:00Z',
-      description: 'Microsoft Exchange Server contains a server-side request forgery vulnerability.',
-      remediation: 'Apply the latest security updates from Microsoft.'
-    },
-    {
-      _id: '3',
-      title: 'OpenSSL Heartbleed',
-      cve: 'CVE-2014-0160',
-      severity: 'High',
-      status: 'Resolved',
-      affectedAssets: 0,
-      cvssScore: 7.5,
-      publishedDate: '2014-04-07',
-      lastSeen: '2024-01-10T09:15:00Z',
-      description: 'OpenSSL contains a vulnerability in the TLS/DTLS heartbeat extension.',
-      remediation: 'Upgrade to OpenSSL 1.0.1g or later.'
-    },
-    {
-      _id: '4',
-      title: 'WordPress Plugin SQL Injection',
-      cve: 'CVE-2023-1234',
-      severity: 'Medium',
-      status: 'Open',
-      affectedAssets: 3,
-      cvssScore: 6.5,
-      publishedDate: '2023-06-15',
-      lastSeen: '2024-01-15T08:20:00Z',
-      description: 'WordPress plugin contains a SQL injection vulnerability.',
-      remediation: 'Update the plugin to the latest version.'
-    }
-  ];
-
-  const filteredVulnerabilities = mockVulnerabilities.filter(vuln => {
-    const matchesSearch = vuln.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vuln.cve.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSeverity = selectedSeverity === 'all' || vuln.severity === selectedSeverity;
-    const matchesStatus = selectedStatus === 'all' || vuln.status === selectedStatus;
-    return matchesSearch && matchesSeverity && matchesStatus;
+  // Load live data from backend
+  const { data: listResponse } = useVulnerabilities({
+    search: searchTerm || undefined,
+    severity: selectedSeverity !== 'all' ? selectedSeverity : undefined,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    page: 1,
+    limit: 10,
   });
+  const { data: summary } = useVulnerabilitiesSummary();
+
+  const vulnerabilities: Vulnerability[] = useMemo(() => (listResponse?.data ?? []), [listResponse]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -154,18 +90,19 @@ const Vulnerabilities: React.FC = () => {
     return 'text-green-600';
   };
 
+  // Summary values from backend, fallback to counts from current page
   const severityCounts = {
-    Critical: mockVulnerabilities.filter(v => v.severity === 'Critical').length,
-    High: mockVulnerabilities.filter(v => v.severity === 'High').length,
-    Medium: mockVulnerabilities.filter(v => v.severity === 'Medium').length,
-    Low: mockVulnerabilities.filter(v => v.severity === 'Low').length
+    Critical: summary?.severity?.critical?.count ?? vulnerabilities.filter(v => v.severity === 'Critical').length,
+    High: summary?.severity?.high?.count ?? vulnerabilities.filter(v => v.severity === 'High').length,
+    Medium: summary?.severity?.medium?.count ?? vulnerabilities.filter(v => v.severity === 'Medium').length,
+    Low: summary?.severity?.low?.count ?? vulnerabilities.filter(v => v.severity === 'Low').length,
   };
 
   const statusCounts = {
-    Open: mockVulnerabilities.filter(v => v.status === 'Open').length,
-    'In Progress': mockVulnerabilities.filter(v => v.status === 'In Progress').length,
-    Resolved: mockVulnerabilities.filter(v => v.status === 'Resolved').length,
-    'False Positive': mockVulnerabilities.filter(v => v.status === 'False Positive').length
+    Open: summary?.status?.open ?? 0,
+    'In Progress': summary?.status?.inProgress ?? 0,
+    Resolved: summary?.status?.resolved ?? 0,
+    'False Positive': summary?.status?.falsePositive ?? 0,
   };
 
   return (
@@ -323,42 +260,47 @@ const Vulnerabilities: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredVulnerabilities.map((vuln) => {
-                const StatusIcon = getStatusIcon(vuln.status);
+              {vulnerabilities.map((vuln) => {
+                const statusValue = (vuln as any).status || 'Open';
+                const StatusIcon = getStatusIcon(statusValue);
+                const title = (vuln as any).title || vuln.cve;
+                const assets = (vuln as any).affected_assets ?? 0;
+                const cvss = (vuln as any).cvss_score ?? 0;
+                const lastSeen = (vuln as any).last_seen || (vuln as any).discovered_at;
                 return (
-                  <tr key={vuln._id} className="hover:bg-gray-50">
+                  <tr key={vuln.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{vuln.title}</div>
+                        <div className="text-sm font-medium text-gray-900">{title}</div>
                         <div className="text-sm text-gray-500 font-mono">{vuln.cve}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSeverityColor(vuln.severity)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSeverityColor(vuln.severity|| "Unknown")}`}>
                         {vuln.severity}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(vuln.status)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(statusValue)}`}>
                         <StatusIcon className="w-3 h-3 mr-1" />
-                        {vuln.status}
+                        {statusValue}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-sm font-bold ${getCVSSColor(vuln.cvssScore)}`}>
-                        {vuln.cvssScore}
+                      <span className={`text-sm font-bold ${getCVSSColor(cvss)}`}>
+                        {cvss}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {vuln.affectedAssets} asset{vuln.affectedAssets !== 1 ? 's' : ''}
+                      {assets} asset{assets !== 1 ? 's' : ''}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(vuln.lastSeen).toLocaleDateString()}
+                      {lastSeen ? new Date(lastSeen).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
                         <Link
-                          to={`/vulnerabilities/${vuln._id}`}
+                          to={`/vulnerabilities/${vuln.id}`}
                           className="text-primary-600 hover:text-primary-900"
                         >
                           <Eye className="w-4 h-4" />
@@ -380,7 +322,7 @@ const Vulnerabilities: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {filteredVulnerabilities.length === 0 && (
+      {vulnerabilities.length === 0 && (
         <div className="text-center py-12">
           <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No vulnerabilities found</h3>

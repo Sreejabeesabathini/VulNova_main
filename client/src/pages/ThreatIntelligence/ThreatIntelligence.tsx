@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Shield, 
   AlertTriangle, 
@@ -26,121 +26,43 @@ import {
   BarChart3,
   PieChart
 } from 'lucide-react';
-
-interface Threat {
-  _id: string;
-  name: string;
-  type: 'Malware' | 'Phishing' | 'Ransomware' | 'APT' | 'DDoS' | 'Insider' | 'Supply Chain';
-  severity: 'Critical' | 'High' | 'Medium' | 'Low';
-  status: 'Active' | 'Contained' | 'Resolved' | 'False Positive';
-  source: string;
-  target: string;
-  firstSeen: string;
-  lastSeen: string;
-  affectedAssets: number;
-  description: string;
-  indicators: string[];
-  mitigation: string;
-  confidence: number;
-}
+import { threatIntelApi } from '../../services/api';
 
 const ThreatIntelligence: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
 
-  // Mock data for demonstration
-  const mockThreats: Threat[] = [
-    {
-      _id: '1',
-      name: 'Emotet Banking Trojan',
-      type: 'Malware',
-      severity: 'High',
-      status: 'Active',
-      source: 'External',
-      target: 'Financial Systems',
-      firstSeen: '2024-01-10T08:00:00Z',
-      lastSeen: '2024-01-15T14:30:00Z',
-      affectedAssets: 23,
-      description: 'Advanced banking trojan targeting financial institutions with sophisticated evasion techniques',
-      indicators: ['emotet.exe', '192.168.1.100:443', 'C&C: evil.com'],
-      mitigation: 'Update antivirus signatures, block suspicious domains, monitor network traffic',
-      confidence: 95
-    },
-    {
-      _id: '2',
-      name: 'Phishing Campaign - Office 365',
-      type: 'Phishing',
-      severity: 'Medium',
-      status: 'Contained',
-      source: 'External',
-      target: 'User Accounts',
-      firstSeen: '2024-01-12T10:15:00Z',
-      lastSeen: '2024-01-14T16:45:00Z',
-      affectedAssets: 8,
-      description: 'Targeted phishing campaign impersonating Microsoft Office 365 login',
-      indicators: ['phish.office365.fake', 'office365-login.com.fake', 'microsoft-support.fake'],
-      mitigation: 'User training, email filtering, MFA enforcement',
-      confidence: 88
-    },
-    {
-      _id: '3',
-      name: 'Ransomware - LockBit 3.0',
-      type: 'Ransomware',
-      severity: 'Critical',
-      status: 'Active',
-      source: 'External',
-      target: 'File Servers',
-      firstSeen: '2024-01-15T02:30:00Z',
-      lastSeen: '2024-01-15T14:30:00Z',
-      affectedAssets: 156,
-      description: 'Advanced ransomware variant with double extortion capabilities',
-      indicators: ['lockbit.exe', 'encrypted files', 'ransom note', 'C&C: lockbit.com'],
-      mitigation: 'Isolate affected systems, restore from backups, contact law enforcement',
-      confidence: 92
-    },
-    {
-      _id: '4',
-      name: 'APT Group - Lazarus',
-      type: 'APT',
-      severity: 'Critical',
-      status: 'Active',
-      source: 'Nation State',
-      target: 'Critical Infrastructure',
-      firstSeen: '2024-01-08T12:00:00Z',
-      lastSeen: '2024-01-15T14:30:00Z',
-      affectedAssets: 45,
-      description: 'Advanced Persistent Threat group with sophisticated attack techniques',
-      indicators: ['lazarus.dll', 'C&C: 185.220.101.45', 'custom malware'],
-      mitigation: 'Advanced threat hunting, network segmentation, threat intelligence sharing',
-      confidence: 78
-    },
-    {
-      _id: '5',
-      name: 'DDoS Attack - Network Layer',
-      type: 'DDoS',
-      severity: 'Medium',
-      status: 'Resolved',
-      source: 'External',
-      target: 'Network Infrastructure',
-      firstSeen: '2024-01-13T18:00:00Z',
-      lastSeen: '2024-01-13T22:00:00Z',
-      affectedAssets: 0,
-      description: 'Distributed Denial of Service attack targeting network infrastructure',
-      indicators: ['UDP flood', 'SYN flood', 'multiple source IPs'],
-      mitigation: 'DDoS protection services, traffic filtering, rate limiting',
-      confidence: 85
-    }
-  ];
+  // Live data
+  const [summary, setSummary] = React.useState<{ total: number; active: number; critical: number; contained: number }>({ total: 0, active: 0, critical: 0, contained: 0 });
+  const [threats, setThreats] = React.useState<any[]>([]);
+  const [trends, setTrends] = React.useState<{ malware?: any; phishing?: any; ransomware?: any; apt?: any }>({});
 
-  const filteredThreats = mockThreats.filter(threat => {
-    const matchesSearch = threat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         threat.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         threat.source.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === 'all' || threat.type === selectedType;
-    const matchesSeverity = selectedSeverity === 'all' || threat.severity === selectedSeverity;
-    return matchesSearch && matchesType && matchesSeverity;
-  });
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const s = await threatIntelApi.getSummary();
+        setSummary(s);
+        const t = await threatIntelApi.getTrends();
+        setTrends(t);
+      } catch {}
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await threatIntelApi.getThreats({
+          search: searchTerm || undefined,
+          severity: selectedSeverity !== 'all' ? selectedSeverity : undefined,
+          type: selectedType !== 'all' ? selectedType : undefined,
+          page: 1,
+          limit: 10,
+        });
+        setThreats(res.data || []);
+      } catch {}
+    })();
+  }, [searchTerm, selectedSeverity, selectedType]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -204,17 +126,17 @@ const ThreatIntelligence: React.FC = () => {
   const threatSeverities = ['all', 'Critical', 'High', 'Medium', 'Low'];
 
   const summaryData = {
-    total: mockThreats.length,
-    active: mockThreats.filter(t => t.status === 'Active').length,
-    critical: mockThreats.filter(t => t.severity === 'Critical').length,
-    contained: mockThreats.filter(t => t.status === 'Contained').length
+    total: summary.total,
+    active: summary.active,
+    critical: summary.critical,
+    contained: summary.contained,
   };
 
   const threatTrends = {
-    malware: { trend: 'up', percentage: 15 },
-    phishing: { trend: 'down', percentage: 8 },
-    ransomware: { trend: 'up', percentage: 23 },
-    apt: { trend: 'stable', percentage: 0 }
+    malware: { trend: trends.malware?.trend || 'stable', percentage: trends.malware?.percentage ?? 0 },
+    phishing: { trend: trends.phishing?.trend || 'stable', percentage: trends.phishing?.percentage ?? 0 },
+    ransomware: { trend: trends.ransomware?.trend || 'stable', percentage: trends.ransomware?.percentage ?? 0 },
+    apt: { trend: trends.apt?.trend || 'stable', percentage: trends.apt?.percentage ?? 0 }
   };
 
   return (
@@ -291,7 +213,7 @@ const ThreatIntelligence: React.FC = () => {
               <TrendingUp className="w-5 h-5 text-red-600" />
               <span className="text-sm font-medium text-red-700">Malware</span>
             </div>
-            <div className="text-2xl font-bold text-red-600">+{threatTrends.malware.percentage}%</div>
+            <div className="text-2xl font-bold text-red-600">{trends.malware?.trend === 'down' ? '-' : '+'}{trends.malware?.percentage ?? 0}%</div>
             <div className="text-xs text-red-600">vs last week</div>
           </div>
           <div className="text-center p-4 rounded-lg bg-green-50">
@@ -299,7 +221,7 @@ const ThreatIntelligence: React.FC = () => {
               <TrendingDown className="w-5 h-5 text-green-600" />
               <span className="text-sm font-medium text-green-700">Phishing</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">-{threatTrends.phishing.percentage}%</div>
+            <div className="text-2xl font-bold text-green-600">{trends.phishing?.trend === 'up' ? '+' : '-'}{trends.phishing?.percentage ?? 0}%</div>
             <div className="text-xs text-green-600">vs last week</div>
           </div>
           <div className="text-center p-4 rounded-lg bg-red-50">
@@ -307,7 +229,7 @@ const ThreatIntelligence: React.FC = () => {
               <TrendingUp className="w-5 h-5 text-red-600" />
               <span className="text-sm font-medium text-red-700">Ransomware</span>
             </div>
-            <div className="text-2xl font-bold text-red-600">+{threatTrends.ransomware.percentage}%</div>
+            <div className="text-2xl font-bold text-red-600">{trends.ransomware?.trend === 'down' ? '-' : '+'}{trends.ransomware?.percentage ?? 0}%</div>
             <div className="text-xs text-red-600">vs last week</div>
           </div>
           <div className="text-center p-4 rounded-lg bg-blue-50">
@@ -315,7 +237,7 @@ const ThreatIntelligence: React.FC = () => {
               <Activity className="w-5 h-5 text-blue-600" />
               <span className="text-sm font-medium text-blue-700">APT</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600">0%</div>
+            <div className="text-2xl font-bold text-blue-600">{trends.apt?.percentage ?? 0}%</div>
             <div className="text-xs text-blue-600">vs last week</div>
           </div>
         </div>
@@ -341,7 +263,7 @@ const ThreatIntelligence: React.FC = () => {
               onChange={(e) => setSelectedType(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
             >
-              {threatTypes.map(type => (
+              {['all', 'Malware', 'Phishing', 'Ransomware', 'APT', 'DDoS', 'Insider', 'Supply Chain'].map(type => (
                 <option key={type} value={type}>
                   {type === 'all' ? 'All Types' : type}
                 </option>
@@ -352,7 +274,7 @@ const ThreatIntelligence: React.FC = () => {
               onChange={(e) => setSelectedSeverity(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
             >
-              {threatSeverities.map(severity => (
+              {['all', 'Critical', 'High', 'Medium', 'Low'].map(severity => (
                 <option key={severity} value={severity}>
                   {severity === 'all' ? 'All Severities' : severity}
                 </option>
@@ -364,11 +286,12 @@ const ThreatIntelligence: React.FC = () => {
 
       {/* Threats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredThreats.map((threat) => {
+        {threats.map((threat) => {
           const TypeIcon = getTypeIcon(threat.type);
-          
+          const sev = threat.severity || 'Medium';
+          const st = threat.status || 'Active';
           return (
-            <div key={threat._id} className="bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+            <div key={threat.id} className="bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow duration-200">
               <div className="p-6">
                 {/* Threat Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -376,11 +299,11 @@ const ThreatIntelligence: React.FC = () => {
                     <TypeIcon className="w-6 h-6 text-primary-600" />
                   </div>
                   <div className="flex flex-col items-end space-y-2">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(threat.severity)}`}>
-                      {threat.severity}
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(sev)}`}>
+                      {sev}
                     </span>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(threat.status)}`}>
-                      {threat.status}
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(st)}`}>
+                      {st}
                     </span>
                   </div>
                 </div>
@@ -404,8 +327,8 @@ const ThreatIntelligence: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Confidence:</span>
-                      <span className={`font-medium ${getConfidenceColor(threat.confidence)}`}>
-                        {threat.confidence}%
+                      <span className={`font-medium ${getConfidenceColor(threat.confidence || 80)}`}>
+                        {threat.confidence || 80}%
                       </span>
                     </div>
                   </div>
@@ -415,14 +338,14 @@ const ThreatIntelligence: React.FC = () => {
                 <div className="mb-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Indicators</h4>
                   <div className="flex flex-wrap gap-1">
-                    {threat.indicators.slice(0, 2).map((indicator, index) => (
+                    {(threat.indicators || []).slice(0, 2).map((indicator: string, index: number) => (
                       <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         {indicator}
                       </span>
                     ))}
-                    {threat.indicators.length > 2 && (
+                    {(threat.indicators || []).length > 2 && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        +{threat.indicators.length - 2} more
+                        +{(threat.indicators || []).length - 2} more
                       </span>
                     )}
                   </div>
@@ -433,11 +356,11 @@ const ThreatIntelligence: React.FC = () => {
                   <div className="space-y-2 text-xs text-gray-500">
                     <div className="flex items-center justify-between">
                       <span>First Seen:</span>
-                      <span>{new Date(threat.firstSeen).toLocaleDateString()}</span>
+                      <span>{threat.firstSeen ? new Date(threat.firstSeen).toLocaleDateString() : '—'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Last Seen:</span>
-                      <span>{new Date(threat.lastSeen).toLocaleDateString()}</span>
+                      <span>{threat.lastSeen ? new Date(threat.lastSeen).toLocaleDateString() : '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -462,7 +385,7 @@ const ThreatIntelligence: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {filteredThreats.length === 0 && (
+      {threats.length === 0 && (
         <div className="text-center py-12">
           <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No threats found</h3>

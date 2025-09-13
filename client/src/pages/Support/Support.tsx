@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Search, 
@@ -26,6 +26,7 @@ import {
   Eye,
   Edit
 } from 'lucide-react';
+import { supportApi } from '../../services/api';
 
 interface SupportTicket {
   _id: string;
@@ -50,109 +51,77 @@ interface KnowledgeArticle {
   helpful: number;
 }
 
+const iconMap: Record<string, any> = {
+  Mail,
+  Phone,
+  MessageCircle,
+  BookOpen,
+  HelpCircle,
+  Settings,
+};
+
 const Support: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
 
-  // Mock data for demonstration
-  const mockTickets: SupportTicket[] = [
-    {
-      _id: '1',
-      title: 'Dashboard not loading properly',
-      description: 'The main dashboard is showing blank sections and error messages',
-      priority: 'High',
-      status: 'In Progress',
-      category: 'Technical',
-      assignedTo: 'John Smith',
-      createdAt: '2024-01-15T09:00:00Z',
-      updatedAt: '2024-01-15T14:30:00Z',
-      responseTime: '2 hours'
-    },
-    {
-      _id: '2',
-      title: 'Integration sync failure',
-      description: 'CrowdStrike integration is not syncing data properly',
-      priority: 'Critical',
-      status: 'Open',
-      category: 'Technical',
-      assignedTo: 'Sarah Johnson',
-      createdAt: '2024-01-15T11:30:00Z',
-      updatedAt: '2024-01-15T11:30:00Z',
-      responseTime: '1 hour'
-    },
-    {
-      _id: '3',
-      title: 'Feature request: Custom dashboards',
-      description: 'Would like to create custom dashboard layouts for different teams',
-      priority: 'Low',
-      status: 'Open',
-      category: 'Feature Request',
-      assignedTo: 'Product Team',
-      createdAt: '2024-01-14T16:00:00Z',
-      updatedAt: '2024-01-14T16:00:00Z',
-      responseTime: '24 hours'
-    },
-    {
-      _id: '4',
-      title: 'Billing inquiry',
-      description: 'Question about enterprise pricing and volume discounts',
-      priority: 'Medium',
-      status: 'Resolved',
-      category: 'Billing',
-      assignedTo: 'Billing Team',
-      createdAt: '2024-01-13T10:00:00Z',
-      updatedAt: '2024-01-14T15:00:00Z',
-      responseTime: '4 hours'
-    }
-  ];
+  // Live data from API
+  const [summaryData, setSummaryData] = useState<{ total: number; open: number; inProgress: number; resolved: number }>({ total: 0, open: 0, inProgress: 0, resolved: 0 });
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
+  const [supportChannels, setSupportChannels] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const mockArticles: KnowledgeArticle[] = [
-    {
-      _id: '1',
-      title: 'Getting Started with VulNova',
-      category: 'Getting Started',
-      tags: ['beginner', 'setup', 'configuration'],
-      lastUpdated: '2024-01-10T10:00:00Z',
-      views: 1247,
-      helpful: 89
-    },
-    {
-      _id: '2',
-      title: 'Configuring EDR Integrations',
-      category: 'Integrations',
-      tags: ['edr', 'crowdstrike', 'sentinelone', 'configuration'],
-      lastUpdated: '2024-01-12T14:30:00Z',
-      views: 856,
-      helpful: 67
-    },
-    {
-      _id: '3',
-      title: 'Understanding Risk Scoring',
-      category: 'Risk Management',
-      tags: ['risk', 'scoring', 'assessment', 'metrics'],
-      lastUpdated: '2024-01-08T09:15:00Z',
-      views: 2341,
-      helpful: 156
-    },
-    {
-      _id: '4',
-      title: 'Troubleshooting Common Issues',
-      category: 'Troubleshooting',
-      tags: ['troubleshooting', 'errors', 'fixes', 'common'],
-      lastUpdated: '2024-01-14T11:20:00Z',
-      views: 1892,
-      helpful: 234
-    }
-  ];
+  // Fetch initial data (tolerate partial failures)
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch all data in parallel
+        const [summary, channels, articlesData] = await Promise.all([
+          supportApi.getSummary(),
+          supportApi.getSupportChannels(),
+          supportApi.getKnowledgeArticles({ limit: 4 })
+        ]);
+        
+        setSummaryData(summary);
+        setSupportChannels(channels || []);
+        setArticles(articlesData?.data || []);
+        
+      } catch (err) {
+        console.error('Error fetching support data:', err);
+        setError('Failed to load support data');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredTickets = mockTickets.filter(ticket => {
-    const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || ticket.category === selectedCategory;
-    const matchesPriority = selectedPriority === 'all' || ticket.priority === selectedPriority;
-    return matchesSearch && matchesCategory && matchesPriority;
-  });
+    fetchData();
+  }, []);
+
+  // Fetch tickets when filters change
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        const res = await supportApi.getTickets({
+          search: searchTerm || undefined,
+          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          priority: selectedPriority !== 'all' ? selectedPriority : undefined,
+          page: 1,
+          limit: 10,
+        });
+        setTickets(res.data || []);
+      } catch (err) {
+        console.error('Error fetching tickets:', err);
+        // Keep existing tickets on error
+      }
+    };
+
+    fetchTickets();
+  }, [searchTerm, selectedCategory, selectedPriority]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -204,19 +173,33 @@ const Support: React.FC = () => {
   const ticketCategories = ['all', 'Technical', 'Billing', 'Feature Request', 'Bug Report', 'General'];
   const ticketPriorities = ['all', 'Critical', 'High', 'Medium', 'Low'];
 
-  const summaryData = {
-    total: mockTickets.length,
-    open: mockTickets.filter(t => t.status === 'Open').length,
-    inProgress: mockTickets.filter(t => t.status === 'In Progress').length,
-    resolved: mockTickets.filter(t => t.status === 'Resolved').length
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading support data...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const supportChannels = [
-    { name: 'Email Support', icon: Mail, description: 'Get help via email', response: '4 hours', available: true },
-    { name: 'Phone Support', icon: Phone, description: 'Speak with our experts', response: 'Immediate', available: true },
-    { name: 'Live Chat', icon: MessageCircle, description: 'Real-time chat support', response: '2 minutes', available: true },
-    { name: 'Knowledge Base', icon: BookOpen, description: 'Self-service articles', response: 'Instant', available: true }
-  ];
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -242,8 +225,8 @@ const Support: React.FC = () => {
 
       {/* Support Channels */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {supportChannels.map((channel, index) => {
-          const Icon = channel.icon;
+        {(supportChannels || []).map((channel, index) => {
+          const Icon = iconMap[channel.icon] || MessageCircle;
           return (
             <div key={index} className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-center justify-between mb-4">
@@ -314,15 +297,15 @@ const Support: React.FC = () => {
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {mockArticles.map((article) => (
+          {(articles || []).map((article) => (
             <div key={article._id} className="p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors">
-              <h4 className="font-medium text-gray-900 mb-2">{article.title}</h4>
+              <h4 className="font-medium text-gray-900 mb-2">{article.title || 'N/A'}</h4>
               <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                <span>{article.category}</span>
-                <span>{article.views} views</span>
+                <span>{article.category || 'General'}</span>
+                <span>{article.views || 0} views</span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {article.tags.slice(0, 2).map((tag, index) => (
+                {(article.tags || []).slice(0, 2).map((tag, index) => (
                   <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                     {tag}
                   </span>
@@ -400,38 +383,38 @@ const Support: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTickets.map((ticket) => {
+              {(tickets || []).map((ticket) => {
                 const CategoryIcon = getCategoryIcon(ticket.category);
                 
                 return (
                   <tr key={ticket._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{ticket.title}</div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">{ticket.description}</div>
+                        <div className="text-sm font-medium text-gray-900">{ticket.title || 'N/A'}</div>
+                        <div className="text-sm text-gray-500 truncate max-w-xs">{ticket.description || 'No description provided.'}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <CategoryIcon className="w-4 h-4 text-primary-600" />
-                        <span className="text-sm text-gray-900">{ticket.category}</span>
+                        <span className="text-sm text-gray-900">{ticket.category || 'General'}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(ticket.priority || 'Medium')}`}>
+                        {ticket.priority || 'Medium'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-                        {ticket.status}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status || 'Open')}`}>
+                        {ticket.status || 'Open'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {ticket.assignedTo}
+                      {ticket.assignedTo || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(ticket.createdAt).toLocaleDateString()}
+                      {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
@@ -455,7 +438,7 @@ const Support: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {filteredTickets.length === 0 && (
+      {(!tickets || tickets.length === 0) && (
         <div className="text-center py-12">
           <MessageCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No tickets found</h3>

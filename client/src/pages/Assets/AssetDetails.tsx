@@ -39,33 +39,22 @@ const AssetDetails: React.FC = () => {
     enabled: !!id,
   });
 
-  // ✅ assetData is already typed Asset
-  const asset: Asset | undefined = assetData;
+  // ✅ Use real data from API
+  const currentAsset: Asset | undefined = assetData;
 
-  // Mock data fallback
-  const mockAsset: Asset = {
-    id: id || '1',
-    name: 'Web Server - Production',
-    ip_address: '192.168.1.100',
-    location: 'Data Center A - Rack 12',
-    asset_type: 'Server',
-    risk_score: 85,
-    critical_vulns: 3,
-    high_vulns: 7,
-    medium_vulns: 12,
-    low_vulns: 5,
-    last_seen: '2024-01-15T10:30:00Z',
-    status: 'Active',
-    tags: ['Production', 'Web Server', 'Critical', 'Internet Facing'],
-  };
+  if (isLoading) {
+    return <div className="p-6">Loading asset details...</div>;
+  }
 
-  const currentAsset: Asset = asset || mockAsset;
+  if (!currentAsset) {
+    return <div className="p-6">Asset not found</div>;
+  }
 
   const vulnerabilityData = [
-    { severity: 'Critical', count: currentAsset.critical_vulns, color: 'bg-red-500' },
-    { severity: 'High', count: currentAsset.high_vulns, color: 'bg-orange-500' },
-    { severity: 'Medium', count: currentAsset.medium_vulns, color: 'bg-yellow-500' },
-    { severity: 'Low', count: currentAsset.low_vulns, color: 'bg-green-500' },
+    { severity: 'Critical', count: currentAsset.critical_vulns || 0, color: 'bg-red-500' },
+    { severity: 'High', count: currentAsset.high_vulns || 0, color: 'bg-orange-500' },
+    { severity: 'Medium', count: currentAsset.medium_vulns || 0, color: 'bg-yellow-500' },
+    { severity: 'Low', count: currentAsset.low_vulns || 0, color: 'bg-green-500' },
   ];
 
   const getAssetTypeIcon = (type: string) => {
@@ -111,18 +100,18 @@ const AssetDetails: React.FC = () => {
     }
   };
 
-  const getRiskColor = (score: number) => {
-    if (score >= 80) return 'text-red-600';
-    if (score >= 60) return 'text-orange-600';
-    if (score >= 40) return 'text-yellow-600';
-    return 'text-green-600';
+  const getRiskColor = (criticality: string) => {
+    switch (criticality) {
+      case 'Critical': return 'text-red-600';
+      case 'High': return 'text-orange-600';
+      case 'Medium': return 'text-yellow-600';
+      case 'Low': return 'text-green-600';
+      default: return 'text-gray-600';
+    }
   };
 
-  const getRiskStatus = (score: number) => {
-    if (score >= 80) return 'Critical';
-    if (score >= 60) return 'High';
-    if (score >= 40) return 'Medium';
-    return 'Low';
+  const getRiskStatus = (criticality: string) => {
+    return criticality || 'Unknown';
   };
 
   if (isLoading) {
@@ -152,16 +141,16 @@ const AssetDetails: React.FC = () => {
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <div className="h-12 w-12 bg-primary-100 rounded-lg flex items-center justify-center">
-            {React.createElement(getAssetTypeIcon(currentAsset.asset_type), { className: 'w-6 h-6 text-primary-600' })}
+            {React.createElement(getAssetTypeIcon(currentAsset.asset_type || 'Server'), { className: 'w-6 h-6 text-primary-600' })}
           </div>
-          <span className={`text-2xl font-bold ${getRiskColor(currentAsset.risk_score)}`}>
-            {currentAsset.risk_score}
+          <span className={`text-2xl font-bold ${getRiskColor(currentAsset.criticality || 'Unknown')}`}>
+            {currentAsset.total_vulns || 0}
           </span>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Risk Score</h3>
-        <p className="text-sm text-gray-600">{getRiskStatus(currentAsset.risk_score)} Risk</p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Total Vulnerabilities</h3>
+        <p className="text-sm text-gray-600">{getRiskStatus(currentAsset.criticality || 'Unknown')} Risk</p>
         <div className="mt-2 text-xs text-gray-500">
-          Last updated: {new Date(currentAsset.last_seen).toLocaleDateString()}
+          Last updated: {new Date(currentAsset.updated_at || '').toLocaleDateString()}
         </div>
       </div>
 
@@ -169,13 +158,13 @@ const AssetDetails: React.FC = () => {
       <div>
         <label className="text-sm font-medium text-gray-500">Tags</label>
         <div className="flex flex-wrap gap-2 mt-1">
-          {currentAsset.tags?.map((tag: string, index: number) => (
+          {currentAsset.tags?.split(',').map((tag: string, index: number) => (
             <span
               key={index}
               className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
             >
               <Tag className="w-3 h-3 mr-1" />
-              {tag}
+              {tag.trim()}
             </span>
           ))}
         </div>

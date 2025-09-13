@@ -1,22 +1,23 @@
-import React from 'react';
-import { LucideIcon, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+// src/components/Dashboard/DashboardCard.tsx
+import React from "react";
+import { LucideIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface DashboardCardProps {
   title: string;
-  value: number | string;
+  value: number;
   icon: LucideIcon;
-  trend?: 'up' | 'down' | 'stable';
-  description?: string;
-  className?: string;
+  description: string;
+  trend?: "up" | "down" | "stable";
+  trendValue?: string; // ex: "+12%" or "-8%"
 }
 
 const DashboardCard: React.FC<DashboardCardProps> = ({
   title,
   value,
   icon: Icon,
-  trend,
   description,
-  className = ''
+  trend = "stable",
+  trendValue,
 }) => {
   const getTrendIcon = () => {
     switch (trend) {
@@ -27,48 +28,45 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
       case 'stable':
         return <Minus className="w-4 h-4 text-gray-600" />;
       default:
-        return null;
-    }
-  };
-
-  const getTrendColor = () => {
-    switch (trend) {
-      case 'up':
-        return 'text-green-600';
-      case 'down':
-        return 'text-red-600';
-      case 'stable':
-        return 'text-gray-600';
-      default:
-        return 'text-gray-600';
+        return <Minus className="w-4 h-4 text-gray-600" />;
     }
   };
 
   return (
-    <div className={`bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow duration-200 ${className}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-12 w-12 bg-primary-100 rounded-lg flex items-center justify-center">
-          <Icon className="w-6 h-6 text-primary-600" />
-        </div>
-        {trend && (
-          <div className="flex items-center space-x-1">
-            {getTrendIcon()}
-            <span className={`text-xs font-medium ${getTrendColor()}`}>
-              {trend === 'up' ? '+12%' : trend === 'down' ? '-8%' : '0%'}
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between p-6 h-56">
+      {/* Header row */}
+      <div className="flex w-full justify-between items-center">
+        <Icon className="w-7 h-7 text-purple-500" />
+        <div className="flex items-center space-x-1">
+          {getTrendIcon()}
+          {trendValue && (
+            <span
+              className={`text-sm font-medium ${
+                trend === "up"
+                  ? "text-green-600"
+                  : trend === "down"
+                  ? "text-red-600"
+                  : "text-gray-500"
+              }`}
+            >
+              {trendValue}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      
-      <div className="mb-2">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
+
+      {/* Title */}
+      <h3 className="text-base font-semibold text-gray-900 text-center mt-2">
+        {title}
+      </h3>
+
+      {/* Value */}
+      <div className="text-2xl font-bold text-gray-900 text-center my-2">
+        {value}
       </div>
-      
-      <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
-      
-      {description && (
-        <p className="text-sm text-gray-600">{description}</p>
-      )}
+
+      {/* Description */}
+      <p className="text-xs text-gray-600 text-center">{description}</p>
     </div>
   );
 };

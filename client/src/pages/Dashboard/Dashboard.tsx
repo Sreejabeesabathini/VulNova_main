@@ -1,17 +1,22 @@
-// src/pages/Dashboard/Dashboard.tsx
-
 import React from "react";
 import { useDashboardData } from "../../hooks/useApiCache";
 import DashboardCard from "../../components/Dashboard/DashboardCard";
 import RiskGauge from "../../components/Dashboard/RiskGauge";
 import RiskyAssetsTable from "../../components/Dashboard/RiskyAssetsTable";
-import { Users, AlertTriangle, Shield, Zap } from "lucide-react";
+import AssetsNotScannedCard from "../../components/Dashboard/AssetsNotScannedCard";
+import AssetsMissingEDRCard from "../../components/Dashboard/AssetsMissingEDRCard";
+import RiskScoreTrendChart from "../../components/Dashboard/RiskScoreTrendChart";
+import {
+  Users,
+  AlertTriangle,
+  Shield,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react";
 import { DashboardSummary } from "../../types";
 
 const Dashboard: React.FC = () => {
-  const { data: dashboardResponse, isLoading: dashboardLoading } = useDashboardData();
-
-  // ✅ unwrap safely
+  const { data: dashboardResponse, isLoading, error } = useDashboardData();
   const dashboard: DashboardSummary | undefined = dashboardResponse;
 
   const getRiskStatus = (score: number) => {
@@ -22,15 +27,14 @@ const Dashboard: React.FC = () => {
     return "Very Low";
   };
 
-  // ✅ vulnerabilities fallback (snake_case)
   const vulnerabilitySummary = dashboard?.vulnerabilities || {
-    critical_vulns: 0,
-    high_vulns: 0,
-    medium_vulns: 0,
-    low_vulns: 0,
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
   };
 
-  if (dashboardLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="animate-pulse">
@@ -41,102 +45,143 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">
+            Error Loading Dashboard
+          </h3>
+          <p className="text-red-600">
+            Failed to load dashboard data. Please check the console for details.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Security Dashboard</h1>
+      <header>
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          Security Dashboard
+        </h1>
         <p className="text-xl text-gray-600">
           Monitor your organization's security posture in real-time
         </p>
-      </div>
+      </header>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Top Metrics */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <DashboardCard
           title="Total Assets"
           value={dashboard?.totalAssets || 0}
           icon={Users}
           trend="up"
+          trendValue="+12%"
           description="Monitored assets"
         />
         <DashboardCard
           title="Vulnerabilities"
           value={
-            vulnerabilitySummary.critical_vulns +
-            vulnerabilitySummary.high_vulns +
-            vulnerabilitySummary.medium_vulns +
-            vulnerabilitySummary.low_vulns
+            vulnerabilitySummary.critical +
+            vulnerabilitySummary.high +
+            vulnerabilitySummary.medium +
+            vulnerabilitySummary.low
           }
           icon={AlertTriangle}
           trend="down"
+          trendValue="-8%"
           description="Active vulnerabilities"
         />
         <DashboardCard
           title="Active Threats"
-          value={dashboard?.total_threats || 0} // ✅ backend snake_case
+          value={dashboard?.totalThreats || 0}
           icon={Shield}
           trend="stable"
+          trendValue="0%"
           description="Current threats"
         />
-        <DashboardCard
-          title="Risk Score"
-          value={dashboard?.risk_score || 0} // ✅ backend snake_case
-          icon={Zap}
-          trend="down"
-          description="Overall risk level"
-        />
-      </div>
+        {/* Risk Score Trend (same height as others) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 h-56 flex flex-col">
+          <RiskScoreTrendChart />
+        </div>
+      </section>
 
-      {/* Risk Gauge */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Risk Assessment + Vulnerability Summary */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Risk Gauge */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl p-6 text-center border border-gray-200">
+          <div className="bg-white rounded-xl p-6 text-center border border-gray-200 h-full flex flex-col justify-center">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Overall Risk Assessment
             </h3>
             <RiskGauge
-              riskScore={dashboard?.risk_score || 0} // ✅ backend snake_case
-              riskStatus={getRiskStatus(dashboard?.risk_score || 0)}
+              riskScore={dashboard?.riskScore || 0}
+              riskStatus={getRiskStatus(dashboard?.riskScore || 0)}
               size="lg"
             />
           </div>
         </div>
-      </div>
 
-      {/* Vulnerability Summary */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold mb-4">Vulnerability Summary</h3>
-        <div className="space-y-4">
-          <div className="flex justify-between p-3 rounded-lg bg-red-50 border border-red-200">
-            <span>Critical</span>
-            <span className="text-2xl font-bold text-red-600">
-              {vulnerabilitySummary.critical_vulns}
-            </span>
-          </div>
-          <div className="flex justify-between p-3 rounded-lg bg-orange-50 border border-orange-200">
-            <span>High</span>
-            <span className="text-2xl font-bold text-orange-600">
-              {vulnerabilitySummary.high_vulns}
-            </span>
-          </div>
-          <div className="flex justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-200">
-            <span>Medium</span>
-            <span className="text-2xl font-bold text-yellow-600">
-              {vulnerabilitySummary.medium_vulns}
-            </span>
-          </div>
-          <div className="flex justify-between p-3 rounded-lg bg-green-50 border border-green-200">
-            <span>Low</span>
-            <span className="text-2xl font-bold text-green-600">
-              {vulnerabilitySummary.low_vulns}
-            </span>
+        {/* Vulnerability Breakdown */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 h-full flex flex-col">
+            <h3 className="text-lg font-semibold mb-4">Vulnerability Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-grow">
+              {/* Critical */}
+              <div className="text-center p-4 rounded-lg bg-red-50 border border-red-200 flex flex-col justify-center">
+                <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                <div className="text-3xl font-bold text-red-600 mb-1">
+                  {vulnerabilitySummary.critical}
+                </div>
+                <div className="text-sm font-medium text-red-700">Critical</div>
+              </div>
+              {/* High */}
+              <div className="text-center p-4 rounded-lg bg-orange-50 border border-orange-200 flex flex-col justify-center">
+                <AlertCircle className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                <div className="text-3xl font-bold text-orange-600 mb-1">
+                  {vulnerabilitySummary.high}
+                </div>
+                <div className="text-sm font-medium text-orange-700">High</div>
+              </div>
+              {/* Medium */}
+              <div className="text-center p-4 rounded-lg bg-yellow-50 border border-yellow-200 flex flex-col justify-center">
+                <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+                <div className="text-3xl font-bold text-yellow-600 mb-1">
+                  {vulnerabilitySummary.medium}
+                </div>
+                <div className="text-sm font-medium text-yellow-700">Medium</div>
+              </div>
+              {/* Low */}
+              <div className="text-center p-4 rounded-lg bg-green-50 border border-green-200 flex flex-col justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                <div className="text-3xl font-bold text-green-600 mb-1">
+                  {vulnerabilitySummary.low}
+                </div>
+                <div className="text-sm font-medium text-green-700">Low</div>
+              </div>
+            </div>
+            <div className="text-center mt-4 text-sm text-gray-600">
+              Total vulnerabilities across all assets
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Riskiest Assets Table */}
-      <RiskyAssetsTable />
+      {/* Riskiest Assets + Side Cards */}
+      <section className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Table */}
+        <div className="lg:col-span-4">
+          <RiskyAssetsTable />
+        </div>
+        {/* Side cards */}
+        <div className="lg:col-span-1 flex flex-col space-y-6">
+          <AssetsNotScannedCard />
+          <AssetsMissingEDRCard />
+        </div>
+      </section>
     </div>
   );
 };

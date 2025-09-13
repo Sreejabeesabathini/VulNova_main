@@ -174,9 +174,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                 </li>
                 <li>
                   <NavLink
-                    to="/assets/integrations"
+                    to="/integrations"
                     className={`flex items-center px-4 py-2 text-gray-700 hover:bg-primary-50 rounded transition ${
-                      isActive('/assets/integrations') ? 'bg-primary-50 text-primary-700' : ''
+                      isActive('/integrations') ? 'bg-primary-50 text-primary-700' : ''
                     }`}
                   >
                     <Link className="w-4 h-4 mr-2" />

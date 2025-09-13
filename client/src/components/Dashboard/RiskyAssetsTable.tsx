@@ -53,9 +53,6 @@ const RiskyAssetsTable: React.FC = () => {
                 Critical Vulns
               </th>
               <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
-                High Vulns
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
                 Last Seen
               </th>
             </tr>
@@ -63,13 +60,12 @@ const RiskyAssetsTable: React.FC = () => {
           <tbody className="divide-y divide-gray-200">
             {assets.map((asset) => (
               <tr key={asset.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{asset.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{asset.asset_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{asset.ip_address}</td>
                 <td className="px-6 py-4 whitespace-nowrap font-semibold text-red-600">
-                  {asset.risk_score}
+                  {asset.risk_score || 0}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">{asset.critical_vulns}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{asset.high_vulns}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{asset.critical_vulns || 0}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {asset.last_seen
                     ? new Date(asset.last_seen).toLocaleDateString()
@@ -79,7 +75,7 @@ const RiskyAssetsTable: React.FC = () => {
             ))}
             {assets.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                   No risky assets found.
                 </td>
               </tr>
